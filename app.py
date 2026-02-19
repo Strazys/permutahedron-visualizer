@@ -8,9 +8,8 @@ from collections import deque
 st.set_page_config(page_title="Permutahedron Explorer", layout="wide")
 st.title("Permutahedron Shortest Path")
 st.markdown("""
-This visualizer finds the **shortest path** between two permutations.
-It uses **Breadth-First Search (BFS)** on the graph of adjacent swaps.
-The path is forced to follow the edges; it cannot cut through the interior.
+This visualizer finds the **shortest geometric path** along the edges of the permutahedron.
+Edges connect permutations that differ by swapping **values** $k$ and $k+1$ (e.g. swapping 1 and 2).
 """)
 
 # --- 2. MATHEMATICAL SETUP ---
@@ -26,27 +25,34 @@ A = np.array([[np.sqrt(2)/2, -np.sqrt(2)/2, 0, 0],
 
 # Apply projection
 projected_items = np.einsum('ik,ak->ai', A, permuted_items)
-
-# Map every permutation tuple to its exact 3D coordinate
 coord_map = {perm: coord for perm, coord in zip(original_perms_list, projected_items)}
 
-def get_neighbors(perm):
+def get_geometric_neighbors(perm):
     """
-    Returns neighbors reachable by exactly one adjacent swap.
-    This DEFINES the edges of the permutahedron.
+    Returns neighbors that are geometrically closest (distance sqrt(2)).
+    Rule: Swap two elements if their VALUES differ by exactly 1.
     """
-    perm = list(perm)
-    # Loop through adjacent pairs (0,1), (1,2), (2,3)
-    for i in range(len(perm) - 1):
-        p_new = perm[:]
-        # Swap
-        p_new[i], p_new[i+1] = p_new[i+1], p_new[i]
-        yield tuple(p_new)
+    p_list = list(perm)
+    neighbors = []
+    
+    # We want to swap value k and k+1 for k in 1..n-1
+    # For order=4, we swap (1,2), (2,3), (3,4)
+    for v in range(1, order):
+        val1 = v
+        val2 = v + 1
+        
+        # Find where these values are in the current permutation
+        idx1 = p_list.index(val1)
+        idx2 = p_list.index(val2)
+        
+        # Create new permutation by swapping them
+        p_new = p_list[:]
+        p_new[idx1], p_new[idx2] = p_new[idx2], p_new[idx1]
+        neighbors.append(tuple(p_new))
+        
+    return neighbors
 
 def bfs_shortest_path(start, end):
-    """
-    Standard BFS to find the shortest path in terms of number of edges (swaps).
-    """
     queue = deque([(start, [start])])
     visited = {start}
     
@@ -55,36 +61,33 @@ def bfs_shortest_path(start, end):
         if current == end:
             return path
         
-        for neighbor in get_neighbors(current):
+        for neighbor in get_geometric_neighbors(current):
             if neighbor not in visited:
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
     return None
 
-# --- 3. USER INTERFACE ---
+# --- 3. UI INPUTS ---
 col1, col2 = st.columns(2)
 with col1:
     start_input = st.selectbox("Start Node", options=original_perms_list, index=0)
 with col2:
-    # Default to index 7 just to give a nice initial path
-    end_input = st.selectbox("End Node", options=original_perms_list, index=7)
+    # Default to the reverse permutation (maximum distance)
+    end_input = st.selectbox("End Node", options=original_perms_list, index=len(original_perms_list)-1)
 
 # --- 4. BUILD THE BACKGROUND MESH ---
-# We build the mesh using the EXACT same neighbor logic as the pathfinding
-# to ensure they match perfectly.
 edge_x, edge_y, edge_z = [], [], []
 seen_edges = set()
 
 for perm in original_perms_list:
     u = coord_map[perm]
-    for neighbor in get_neighbors(perm):
-        # Create a sorted tuple ID so we don't draw the same edge twice (A-B and B-A)
+    for neighbor in get_geometric_neighbors(perm):
+        # Create a sorted tuple ID to avoid drawing the same edge twice
         edge_id = tuple(sorted((perm, neighbor)))
         
         if edge_id not in seen_edges:
             seen_edges.add(edge_id)
             v = coord_map[neighbor]
-            # Add line segment: u -> v -> None
             edge_x.extend([u[0], v[0], None])
             edge_y.extend([u[1], v[1], None])
             edge_z.extend([u[2], v[2], None])
@@ -96,7 +99,7 @@ fig.add_trace(go.Scatter3d(
     x=edge_x, y=edge_y, z=edge_z,
     mode='lines',
     line=dict(color='white', width=3),
-    hoverinfo='none', # Disable hover on the grid to reduce clutter
+    hoverinfo='none',
     name='Edges'
 ))
 
@@ -104,8 +107,6 @@ fig.add_trace(go.Scatter3d(
 path_nodes = bfs_shortest_path(start_input, end_input)
 
 if path_nodes:
-    # Convert list of permutations in the path to X, Y, Z lists
-    # This ensures we visit every vertex along the way
     path_coords = [coord_map[p] for p in path_nodes]
     px = [c[0] for c in path_coords]
     py = [c[1] for c in path_coords]
@@ -114,13 +115,13 @@ if path_nodes:
     # Plot the Path (Red Line + Small dots at stops)
     fig.add_trace(go.Scatter3d(
         x=px, y=py, z=pz,
-        mode='lines+markers', # Draw both lines and points
-        line=dict(color='#ff0055', width=10), # Neon Red
-        marker=dict(size=4, color='#ff0055'), # Small markers at vertices
+        mode='lines+markers',
+        line=dict(color='#ff0055', width=10),
+        marker=dict(size=5, color='#ff0055'),
         name='Shortest Path'
     ))
 
-    # Highlight Start (Green Diamond)
+    # Highlight Start
     start_c = coord_map[start_input]
     fig.add_trace(go.Scatter3d(
         x=[start_c[0]], y=[start_c[1]], z=[start_c[2]],
@@ -128,11 +129,11 @@ if path_nodes:
         marker=dict(color='#00ff00', size=15, symbol='diamond'),
         text=[str(start_input)],
         textposition="top center",
-        textfont=dict(color='white', size=12),
+        textfont=dict(color='white', size=14),
         name='Start'
     ))
 
-    # Highlight End (Cyan Diamond)
+    # Highlight End
     end_c = coord_map[end_input]
     fig.add_trace(go.Scatter3d(
         x=[end_c[0]], y=[end_c[1]], z=[end_c[2]],
@@ -140,11 +141,11 @@ if path_nodes:
         marker=dict(color='#00ffff', size=15, symbol='diamond'),
         text=[str(end_input)],
         textposition="top center",
-        textfont=dict(color='white', size=12),
+        textfont=dict(color='white', size=14),
         name='End'
     ))
 
-    st.success(f"Path found! Distance: {len(path_nodes) - 1} swaps.")
+    st.success(f"Path found! Distance: {len(path_nodes) - 1} steps.")
 
 # --- 6. STYLING ---
 fig.update_layout(
