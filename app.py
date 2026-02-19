@@ -8,7 +8,7 @@ import ast
 # --- 1. SETUP & CONFIGURATION ---
 st.set_page_config(page_title="Windsor Kiang's Permutahedron Explorer", layout="wide")
 
-st.title("N=4 Permutahedron Visualizer")
+st.title("S₄ Permutahedron Visualizer by Windsor Kiang")
 st.markdown("Enter two permutations of `(1, 2, 3, 4)` to see the shortest path between them on the permutahedron.")
 
 # --- 2. MATH & LOGIC ---
