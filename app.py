@@ -5,7 +5,7 @@ import itertools
 from collections import deque
 
 # --- 1. CONFIGURATION ---
-st.set_page_config(page_title="Permutahedron Explorer", layout="wide")
+st.set_page_config(page_title="Permutohedron Explorer", layout="wide")
 st.title("S₄ Permutahedron Visualizer by Windsor Kiang")
 st.markdown("""
 This visualizer finds the **shortest geometric path** along the edges of the permutahedron.
