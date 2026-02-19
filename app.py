@@ -74,7 +74,7 @@ fig = go.Figure()
 fig.add_trace(go.Scatter3d(
     x=edge_x, y=edge_y, z=edge_z,
     mode='lines',
-    line=dict(color='black', width=2), # <--- HERE IS THE BLACK COLOR
+    line=dict(color='white', width=2), # <--- HERE IS THE BLACK COLOR
     hoverinfo='none',
     name='Edges'
 ))
