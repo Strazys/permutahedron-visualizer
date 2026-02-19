@@ -6,7 +6,7 @@ from collections import deque
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Permutohedron Explorer", layout="wide")
-st.title("S₄ Permutohedron Visualizer by Windsor Kiang")
+st.title("Permutohedron Visualizer by Windsor Kiang")
 st.markdown("""
 This visualizer finds the **shortest geometric path** along the edges of the permutahedron.
 Edges connect permutations that differ by swapping **values** $k$ and $k+1$ (e.g. swapping 1 and 2).
