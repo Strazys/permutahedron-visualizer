@@ -6,9 +6,9 @@ from collections import deque
 import ast
 
 # --- 1. SETUP & CONFIGURATION ---
-st.set_page_config(page_title="Permutahedron Explorer", layout="wide")
+st.set_page_config(page_title="Windsor Kiang's Permutahedron Explorer", layout="wide")
 
-st.title("Permutahedron Shortest Path Visualizer")
+st.title("N=4 Permutahedron Visualizer")
 st.markdown("Enter two permutations of `(1, 2, 3, 4)` to see the shortest path between them on the permutahedron.")
 
 # --- 2. MATH & LOGIC ---
