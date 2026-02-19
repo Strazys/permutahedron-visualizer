@@ -3,131 +3,162 @@ import plotly.graph_objects as go
 import numpy as np
 import itertools
 from collections import deque
-import ast
 
-# --- 1. SETUP & CONFIGURATION ---
-st.set_page_config(page_title="Windsor Kiang's Permutahedron Explorer", layout="wide")
+# --- 1. CONFIGURATION ---
+st.set_page_config(page_title="Permutahedron Explorer", layout="wide")
+st.title("Permutahedron Shortest Path")
+st.markdown("""
+This visualizer finds the **shortest path** between two permutations.
+It uses **Breadth-First Search (BFS)** on the graph of adjacent swaps.
+The path is forced to follow the edges; it cannot cut through the interior.
+""")
 
-st.title("S₄ Permutahedron Visualizer by Windsor Kiang")
-st.markdown("Enter two permutations of `(1, 2, 3, 4)` to see the shortest path between them on the permutahedron.")
-
-# --- 2. MATH & LOGIC ---
+# --- 2. MATHEMATICAL SETUP ---
 order = 4
 items = range(1, order+1)
 original_perms_list = [*itertools.permutations(items)]
 permuted_items = np.array(original_perms_list)
 
-# Project to 3D
+# 3D Projection Matrix (Archimedean Solid projection)
 A = np.array([[np.sqrt(2)/2, -np.sqrt(2)/2, 0, 0],
               [np.sqrt(6)/6, np.sqrt(6)/6, -np.sqrt(2/3), 0],
               [np.sqrt(12)/12, np.sqrt(12)/12, np.sqrt(12)/12, -np.sqrt(3)/2]])
 
+# Apply projection
 projected_items = np.einsum('ik,ak->ai', A, permuted_items)
+
+# Map every permutation tuple to its exact 3D coordinate
 coord_map = {perm: coord for perm, coord in zip(original_perms_list, projected_items)}
 
 def get_neighbors(perm):
+    """
+    Returns neighbors reachable by exactly one adjacent swap.
+    This DEFINES the edges of the permutahedron.
+    """
     perm = list(perm)
+    # Loop through adjacent pairs (0,1), (1,2), (2,3)
     for i in range(len(perm) - 1):
         p_new = perm[:]
+        # Swap
         p_new[i], p_new[i+1] = p_new[i+1], p_new[i]
         yield tuple(p_new)
 
 def bfs_shortest_path(start, end):
+    """
+    Standard BFS to find the shortest path in terms of number of edges (swaps).
+    """
     queue = deque([(start, [start])])
     visited = {start}
+    
     while queue:
         current, path = queue.popleft()
         if current == end:
             return path
+        
         for neighbor in get_neighbors(current):
             if neighbor not in visited:
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
     return None
 
-# --- 3. UI INPUTS ---
+# --- 3. USER INTERFACE ---
 col1, col2 = st.columns(2)
 with col1:
-    start_input = st.selectbox("Start Permutation", options=original_perms_list, index=0)
+    start_input = st.selectbox("Start Node", options=original_perms_list, index=0)
 with col2:
-    # Default to the reverse of the start for maximum distance
-    end_input = st.selectbox("End Permutation", options=original_perms_list, index=len(original_perms_list)-1)
+    # Default to index 7 just to give a nice initial path
+    end_input = st.selectbox("End Node", options=original_perms_list, index=7)
 
-# --- 4. DRAWING THE MESH (BLACK EDGES) ---
-# We use Graph Objects directly for better control over the black edges
+# --- 4. BUILD THE BACKGROUND MESH ---
+# We build the mesh using the EXACT same neighbor logic as the pathfinding
+# to ensure they match perfectly.
 edge_x, edge_y, edge_z = [], [], []
+seen_edges = set()
 
-for i, point in enumerate(projected_items):
-    d = np.linalg.norm(projected_items-point[np.newaxis,:], axis=1)
-    # Find neighbors (distance approx sqrt(2) for this projection, checking < 1e-3 tolerance on the sorted diffs)
-    js = (abs(d - d[d.argsort()[1]]) < 1e-3).nonzero()[0]
-    
-    for j in js:
-        # Add line segment (point -> neighbor -> None) to create disjoint lines
-        edge_x.extend([point[0], projected_items[j][0], None])
-        edge_y.extend([point[1], projected_items[j][1], None])
-        edge_z.extend([point[2], projected_items[j][2], None])
+for perm in original_perms_list:
+    u = coord_map[perm]
+    for neighbor in get_neighbors(perm):
+        # Create a sorted tuple ID so we don't draw the same edge twice (A-B and B-A)
+        edge_id = tuple(sorted((perm, neighbor)))
+        
+        if edge_id not in seen_edges:
+            seen_edges.add(edge_id)
+            v = coord_map[neighbor]
+            # Add line segment: u -> v -> None
+            edge_x.extend([u[0], v[0], None])
+            edge_y.extend([u[1], v[1], None])
+            edge_z.extend([u[2], v[2], None])
 
 fig = go.Figure()
 
-# Add the wireframe mesh (BLACK LINES)
+# Plot the Wireframe (White)
 fig.add_trace(go.Scatter3d(
     x=edge_x, y=edge_y, z=edge_z,
     mode='lines',
-    line=dict(color='white', width=2), # <--- HERE IS THE BLACK COLOR
-    hoverinfo='none',
+    line=dict(color='white', width=3),
+    hoverinfo='none', # Disable hover on the grid to reduce clutter
     name='Edges'
 ))
 
-# --- 5. DRAWING THE PATH ---
+# --- 5. CALCULATE AND PLOT THE PATH ---
 path_nodes = bfs_shortest_path(start_input, end_input)
 
 if path_nodes:
+    # Convert list of permutations in the path to X, Y, Z lists
+    # This ensures we visit every vertex along the way
     path_coords = [coord_map[p] for p in path_nodes]
-    px_coords = [p[0] for p in path_coords]
-    py_coords = [p[1] for p in path_coords]
-    pz_coords = [p[2] for p in path_coords]
+    px = [c[0] for c in path_coords]
+    py = [c[1] for c in path_coords]
+    pz = [c[2] for c in path_coords]
 
-    # Path Line (Red)
+    # Plot the Path (Red Line + Small dots at stops)
     fig.add_trace(go.Scatter3d(
-        x=px_coords, y=py_coords, z=pz_coords,
-        mode='lines+markers',
-        line=dict(color='red', width=8),
-        marker=dict(size=4, color='red'),
+        x=px, y=py, z=pz,
+        mode='lines+markers', # Draw both lines and points
+        line=dict(color='#ff0055', width=10), # Neon Red
+        marker=dict(size=4, color='#ff0055'), # Small markers at vertices
         name='Shortest Path'
     ))
 
-    # Start Node (Green)
+    # Highlight Start (Green Diamond)
     start_c = coord_map[start_input]
     fig.add_trace(go.Scatter3d(
         x=[start_c[0]], y=[start_c[1]], z=[start_c[2]],
         mode='markers+text',
-        marker=dict(color='green', size=10, symbol='diamond'),
-        text=[str(start_input)], textposition="top center",
+        marker=dict(color='#00ff00', size=15, symbol='diamond'),
+        text=[str(start_input)],
+        textposition="top center",
+        textfont=dict(color='white', size=12),
         name='Start'
     ))
 
-    # End Node (Blue)
+    # Highlight End (Cyan Diamond)
     end_c = coord_map[end_input]
     fig.add_trace(go.Scatter3d(
         x=[end_c[0]], y=[end_c[1]], z=[end_c[2]],
         mode='markers+text',
-        marker=dict(color='blue', size=10, symbol='diamond'),
-        text=[str(end_input)], textposition="top center",
+        marker=dict(color='#00ffff', size=15, symbol='diamond'),
+        text=[str(end_input)],
+        textposition="top center",
+        textfont=dict(color='white', size=12),
         name='End'
     ))
 
-    st.success(f"Path found! Steps: {len(path_nodes) - 1}")
+    st.success(f"Path found! Distance: {len(path_nodes) - 1} swaps.")
 
-# Clean up layout
+# --- 6. STYLING ---
 fig.update_layout(
+    paper_bgcolor='black',
+    plot_bgcolor='black',
     scene=dict(
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        zaxis=dict(visible=False)
+        xaxis=dict(visible=False, backgroundcolor="black"),
+        yaxis=dict(visible=False, backgroundcolor="black"),
+        zaxis=dict(visible=False, backgroundcolor="black"),
+        bgcolor='black'
     ),
     margin=dict(l=0, r=0, b=0, t=0),
     showlegend=True,
+    legend=dict(font=dict(color="white"), y=0.9),
     height=700
 )
 
