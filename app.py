@@ -15,7 +15,7 @@ Edges connect permutations that differ by swapping **values** $k$ and $k+1$ (e.g
 
 def get_projection_matrix(n):
     """
-    Generates a projection matrix to map n-dimensional points to 3D.
+    Generates a projection matrix to map n-dimensional points to 3D. 
     We map the standard basis vectors of R^n to vectors pointing to the 
     vertices of a regular simplex centered at the origin in 3D (or 2D for n=3).
     """
